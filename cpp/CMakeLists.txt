@@ -21,6 +21,16 @@ cmake_minimum_required (VERSION 3.11)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+	if (WIN32)
+	    add_definitions(-D_WIN32_WINNT=0x0602)
+	    message("Updated default cmake C/CXX flags for Win32")
+    	    set(CMAKE_C_FLAGS_DEBUG "/Od /MP /MTd /DDEBUG ${CMAKE_C_FLAGS}" CACHE STRING "" FORCE)
+	    set(CMAKE_CXX_FLAGS_DEBUG "/Od /MP /MTd /DDEBUG ${CMAKE_CXX_FLAGS}" CACHE STRING "" FORCE)
+	    set(CMAKE_C_FLAGS_RELEASE "/O2 /MP /MT /DNDEBUG ${CMAKE_C_FLAGS}" CACHE STRING "" FORCE)
+	    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /MP /MT /DNDEBUG ${CMAKE_CXX_FLAGS}" CACHE STRING "" FORCE)
+	endif (WIN32)
+
+
 project (libphonenumber)
 set (libphonenumber_VERSION_MAJOR 8)
 set (libphonenumber_VERSION_MINOR 12)
@@ -83,15 +93,15 @@ function (find_required_program NAME FILENAME DESCRIPTION)
 endfunction (find_required_program)
 
 # Options that can be passed to CMake using 'cmake -DKEY=VALUE'.
-option ("BUILD_GEOCODER" "Build the offline phone number geocoder" "ON")
-option ("REGENERATE_METADATA" "Regenerate metadata instead of using it from the source tree" "ON")
+option ("BUILD_GEOCODER" "Build the offline phone number geocoder" "OFF")
+option ("REGENERATE_METADATA" "Regenerate metadata instead of using it from the source tree" "OFF")
 option ("USE_ALTERNATE_FORMATS" "Use alternate formats" "ON")
 option ("USE_PROTOBUF_LITE" "Link to protobuf-lite" "OFF")
-option ("USE_BOOST" "Use Boost" "ON")
+option ("USE_BOOST" "Use Boost" "OFF")
 option ("USE_ICU_REGEXP" "Use ICU regexp engine" "ON")
-option ("USE_LITE_METADATA" "Use lite metadata" "OFF")
+option ("USE_LITE_METADATA" "Use lite metadata" "ON")
 option ("USE_RE2" "Use RE2" "OFF")
-option ("USE_STD_MAP" "Force the use of std::map" "OFF")
+option ("USE_STD_MAP" "Force the use of std::map" "ON")
 option ("BUILD_STATIC_LIB" "Build static libraries" "ON")
 option ("USE_STDMUTEX" "Use C++ 2011 std::mutex for multi-threading" "OFF")
 option ("USE_POSIX_THREAD" "Use Posix api for multi-threading" "OFF")
@@ -103,9 +113,7 @@ endif ()
 # Find all the required libraries and programs.
 if (${USE_BOOST} STREQUAL "ON")
   add_definitions ("-DI18N_PHONENUMBERS_USE_BOOST")
-  if (WIN32)
     set (Boost_USE_STATIC_LIBS ON)
-  endif ()
   find_package (Boost 1.40.0 COMPONENTS date_time system thread)
   if (NOT Boost_FOUND)
     print_error ("Boost Date_Time/System/Thread" "Boost")
@@ -132,27 +140,40 @@ if (${USE_RE2} STREQUAL "ON")
   find_required_library (RE2 re2/re2.h re2 "Google RE2")
 endif ()
 
-if (${USE_PROTOBUF_LITE} STREQUAL "ON")
-  find_required_library (PROTOBUF google/protobuf/message_lite.h protobuf-lite
-                         "Google Protocol Buffers")
-  check_library_version (PC_PROTOBUF protobuf-lite>=2.4)
-else ()
-  find_required_library (PROTOBUF google/protobuf/message_lite.h protobuf
-                         "Google Protocol Buffers")
-  check_library_version (PC_PROTOBUF protobuf>=2.4)
-endif ()
 
-find_required_library (ICU_UC unicode/uchar.h icuuc "ICU")
-check_library_version (PC_ICU_UC icu-uc>=4.4)
+set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_STATIC_LIBRARY_SUFFIX})
+
+find_package(absl CONFIG REQUIRED)
+find_package(ICU 70.0 REQUIRED COMPONENTS uc dt i18n io tu)
+
+include(FindProtobuf)
+find_package(Protobuf 2.4 REQUIRED)
+include_directories(${PROTOBUF_INCLUDE_DIR})
+
+#find_required_library (ICU_UC unicode/uchar.h icuuc "ICU")
+#check_library_version (PC_ICU_UC icu-uc>=4.4)
+
+#if (${USE_PROTOBUF_LITE} STREQUAL "ON")
+#  find_required_library (PROTOBUF google/protobuf/message_lite.h protobuf-lite
+#                         "Google Protocol Buffers")
+#  check_library_version (PC_PROTOBUF protobuf-lite>=2.4)
+#else ()
+#  find_required_library (PROTOBUF google/protobuf/message_lite.h protobuf
+#                         "Google Protocol Buffers")
+#  check_library_version (PC_PROTOBUF protobuf>=2.4)
+#endif ()
 
 set (ICU_INCLUDE_DIR ${ICU_UC_INCLUDE_DIR})
 set (ICU_LIB ${ICU_UC_LIB})
+
 # If ICU regexp engine is used or if the geocoder is built, use icui18n as well.
 if (${USE_ICU_REGEXP} STREQUAL "ON" OR ${BUILD_GEOCODER} STREQUAL "ON")
-  find_required_library (ICU_I18N unicode/regex.h icui18n "ICU")
-  check_library_version (PC_ICU_I18N icu-i18n>=4.4)
-  list (APPEND ICU_INCLUDE_DIR ${ICU_I18N_INCLUDE_DIR})
-  list (APPEND ICU_LIB ${ICU_I18N_LIB})
+  #find_required_library (ICU_I18N unicode/regex.h icui18n "ICU")
+  #check_library_version (PC_ICU_I18N icu-i18n>=4.4)
+  #find_library(ICU_DATA icudata)
+  #list (APPEND ICU_INCLUDE_DIR ${ICU_I18N_INCLUDE_DIR})
+  #list (APPEND ICU_LIB /usr/local/lib/libicudata.a ${ICU_I18N_LIB})
+  #list (APPEND ICU_LIB ${ICU_DATA})
 endif ()
 
 find_required_program (PROTOC protoc
@@ -164,8 +185,10 @@ if (${REGENERATE_METADATA} STREQUAL "ON")
 endif ()
 
 if (APPLE)
-  FIND_LIBRARY (COREFOUNDATION_LIB CoreFoundation)
-  FIND_LIBRARY (FOUNDATION_LIB Foundation)
+  #FIND_LIBRARY (COREFOUNDATION_LIB CoreFoundation)
+  #FIND_LIBRARY (FOUNDATION_LIB Foundation)
+  
+
   set (CMAKE_MACOSX_RPATH "OFF")
   set (CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS
     "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS} -undefined dynamic_lookup")
@@ -422,7 +445,7 @@ if (${BUILD_GEOCODER} STREQUAL "ON")
 endif ()
 
 # Build a shared library (with -fPIC).
-set (BUILD_SHARED_LIB true)
+set (BUILD_SHARED_LIB false)
 
 if (${USE_RE2} STREQUAL "ON")
   # RE2 is not always available as a shared library (e.g: package provided by
@@ -432,6 +455,7 @@ if (${USE_RE2} STREQUAL "ON")
       "RE2 not available as a shared library, shared library build disabled")
     set (BUILD_SHARED_LIB false)
   endif ()
+  set(RE2_LIB re2)
 endif ()
 
 if (BUILD_SHARED_LIB)
@@ -453,9 +477,13 @@ if (BUILD_SHARED_LIB)
 endif ()
 
 # Libraries used by both libphonenumber and libgeocoding.
-set (COMMON_DEPS ${ICU_LIB})
+set (COMMON_DEPS ${ICU_LIB} ${ICU_LIBRARIES})
 
-set (LIBRARY_DEPS ${PROTOBUF_LIB})
+set (LIBRARY_DEPS ${Protobuf_LIBRARIES})
+
+message(STATUS "COMMON_DEPS = ${COMMON_DEPS}")
+message(STATUS "LIBRARY_DEPS = ${LIBRARY_DEPS}")
+
 
 if (${USE_BOOST} STREQUAL "ON")
   list (APPEND LIBRARY_DEPS ${Boost_LIBRARIES})
@@ -480,10 +508,14 @@ set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 list (APPEND LIBRARY_DEPS absl::node_hash_set absl::strings absl::synchronization)
 
 if (APPLE)
-  list (APPEND COMMON_DEPS ${COREFOUNDATION_LIB} ${FOUNDATION_LIB})
+  list (APPEND COMMON_DEPS "-framework CoreFoundation" "-framework Foundation")
 endif ()
 
 list (APPEND LIBRARY_DEPS ${COMMON_DEPS})
+
+message(STATUS "LIBRARY_DEPS = ${LIBRARY_DEPS}")
+
+include_directories(${ICU_INCLUDE_DIRS})
 
 if (${BUILD_STATIC_LIB} STREQUAL "ON")
   target_link_libraries (phonenumber ${LIBRARY_DEPS})
