@@ -684,7 +684,7 @@ install (FILES
   "src/phonenumbers/base/synchronization/lock_win32.h"
   DESTINATION include/phonenumbers/base/synchronization/)
 
-set (LIBDIR ${CMAKE_INSTALL_LIBDIR})
+#set (LIBDIR ${CMAKE_INSTALL_LIBDIR})
 
 if (${BUILD_STATIC_LIB} STREQUAL "ON")
   install (TARGETS phonenumber LIBRARY DESTINATION ${LIBDIR} ARCHIVE DESTINATION ${LIBDIR})
